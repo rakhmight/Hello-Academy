@@ -1,11 +1,11 @@
-import { actions as attackSwitchActions } from "@/store/attackSwitch/attackSwitch.slice"
+import { actions as attackSwitcherActions } from "@/store/attackSwitch/attackSwitch.slice"
 import { actions as logsActions } from "@/store/logs/logs.slice"
 import { bindActionCreators } from "@reduxjs/toolkit"
 import { useMemo } from "react"
 import { useDispatch } from "react-redux"
 
 const rootActions = {
-    ...attackSwitchActions,
+    ...attackSwitcherActions,
     ...logsActions
 }
 

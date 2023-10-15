@@ -1,0 +1,35 @@
+:root {
+  --size: 320px;
+  --s: calc(var(--size) / 6);
+  --bor: calc(var(--size) / 30);
+  --boxShadow: calc(var(--size) / 12);
+}
+.circle, .active-circle{
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--size);
+  height: var(--size);
+}
+
+.circle:before, .active-circle:before {
+  content: "";
+  position: absolute;
+  top: var(--s);
+  left: var(--s);
+  right: var(--s);
+  bottom: var(--s);
+  border-radius: 50%;
+  border: var(--bor) solid #30435754;
+  transition: all 0.3s ease-in-out;
+}
+.active-circle:before {
+  box-shadow: 0 0 var(--boxShadow) #6DE8EA, inset 0 0 var(--boxShadow) #6DE8EA;
+  border: var(--bor) solid #fff;
+}
+
+.img-glow{
+  filter: drop-shadow(0 0 8px #6de8ea);
+  transition: all 0.2s ease-in-out;
+}

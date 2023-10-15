@@ -20,7 +20,7 @@ const Console : FC = () => {
                     (
                         <div className='w-full h-full flex flex-col items-center justify-center gap-1'>
                             <Img src='./media/empty.png' boxSize='50px' className='opacity-[0.5]' />
-                            <Text color='#aaa'>No logs</Text>
+                            <Text color='#aaa' fontSize='sm'>No logs</Text>
                         </div>
                     )
                 }

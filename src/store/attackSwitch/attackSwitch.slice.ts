@@ -4,14 +4,14 @@ const initialState: StoreSliceBase<boolean> = {
     value: false
 }
 
-export const attackSwitchSlice = createSlice({
-    name: 'attackSwitch',
+export const attackSwitcherSlice = createSlice({
+    name: 'attackSwitcher',
     initialState,
     reducers: {
-        setAttackSwitch: (state) => {
+        setAttackSwitcher: (state) => {
             state.value = !state.value
         },
     }
 })
 
-export const { actions, reducer } = attackSwitchSlice
+export const { actions, reducer } = attackSwitcherSlice

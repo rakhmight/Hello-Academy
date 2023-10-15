@@ -9,7 +9,7 @@ interface GlowTitleProps {
 
 const GlowTitle : FC<GlowTitleProps> = ({ title, isGlowing }) => {
     return(
-        <Text fontSize='xl' className={isGlowing ? styles.neon : 'text-[#aaa]'}>{ title }</Text>
+        <Text fontSize='xl' className={isGlowing ? styles.neon : 'text-[#aaa] z-[10]'}>{ title }</Text>
     )
 }
 

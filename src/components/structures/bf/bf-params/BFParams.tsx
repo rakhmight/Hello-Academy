@@ -1,16 +1,30 @@
-import { FC, useState } from 'react'
+import { FC, useState, useEffect } from 'react'
 import AttackParamsWrapper from '@/hoc/attack-params-wrapper/AttackParamsWrapper'
 import AttackTrigger from '@/components/ui/triggers/attack-trigger/AttackTrigger'
-import { Input, Textarea } from '@chakra-ui/react'
+import { Input, Textarea, Icon, Text } from '@chakra-ui/react'
 import IconTooltipBtn from '@/components/ui/buttons/icon-tooltip-btn/IconTooltipBtn'
 import { BiSolidRightArrow } from 'react-icons/bi'
 import { IoStop } from 'react-icons/io5'
+import { GoPaperclip } from 'react-icons/go'
+import { useNavigate } from "react-router-dom"
+import { useActions } from '@/hooks/useActions/useActions'
 
 const BFParams : FC = () => {
     const [isAttacks, setIsAttacks] = useState(false)
 
+    const navigate = useNavigate();
+    const { resetLogs, setAttackSwitcher } = useActions()
+
+    const exit = () => {
+        resetLogs()
+        navigate('/')
+    }
+
+    useEffect(() => {
+        setAttackSwitcher()
+    }, [isAttacks])
     return(
-        <AttackParamsWrapper>
+        <AttackParamsWrapper handleClick={exit}>
             <AttackTrigger title='Brute force' img='bf' />
 
             <div className='w-[400px] flex flex-col gap-3'>
@@ -44,15 +58,30 @@ const BFParams : FC = () => {
                     }
                 </div>
 
-                <Input
-                placeholder='Pwd length'
-                backgroundColor='var(--form-color)'
-                border='hidden'
-                size='sm'
-                color='#fff'
-                width='120px'
-                type='number'
-                />
+                <div className='flex gap-2'>
+                    <Input
+                    placeholder='Pwd length'
+                    backgroundColor='var(--form-color)'
+                    border='hidden'
+                    size='sm'
+                    color='#fff'
+                    width='120px'
+                    type='number'
+                    />
+
+                    <div className='relative'>
+                        <Text className='absolute z-10 top-[6px] left-[12px] hover:cursor-pointer' fontSize='small' color='#9ca3af'>Upload JSON file with req body</Text>
+                        <Icon className='absolute z-10 top-[7px] right-[8px] hover:cursor-pointer' as={GoPaperclip} fontSize='18px' color='#9ca3af' />
+                        <Input
+                        backgroundColor='var(--form-color)'
+                        border='hidden'
+                        size='sm'
+                        color='#fff'
+                        type='file'
+                        className='file:mt-[50px] hover:cursor-pointer'
+                        />
+                    </div>
+                </div>
 
                 <Textarea
                 placeholder='Specify the characters that should be included in the selected password'
