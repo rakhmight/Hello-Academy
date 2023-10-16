@@ -7,10 +7,11 @@ interface IconTooltipBtnProps {
     icon: IconType,
     size?: string,
     iColor?: string,
-    clickHandler?: () => void
+    clickHandler?: () => void,
+    isDisabled?: boolean
 }
 
-const IconTooltipBtn : FC<IconTooltipBtnProps> = ({ label, icon, clickHandler, size='sm', iColor='#fff' }) => {
+const IconTooltipBtn : FC<IconTooltipBtnProps> = ({ label, icon, clickHandler, size='sm', iColor='#fff', isDisabled=false }) => {
     return(
         <Tooltip label={ label } fontSize='sm'>
             <IconButton
@@ -22,6 +23,7 @@ const IconTooltipBtn : FC<IconTooltipBtnProps> = ({ label, icon, clickHandler, s
             icon={<Icon color={iColor} as={ icon } />}
             size={size}
             onClick={clickHandler ? clickHandler : () => false}
+            isDisabled={isDisabled}
             />
         </Tooltip>
     )
